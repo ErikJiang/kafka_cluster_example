@@ -10,3 +10,17 @@
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
+
+# Ignore all files in kafka/
+kafka/kfk1/data/*
+kafka/kfk2/data/*
+kafka/kfk3/data/*
+kafka/zk1/data/*
+kafka/zk1/log/*
+kafka/zk2/data/*
+kafka/zk2/log/*
+kafka/zk3/data/*
+kafka/zk3/log/*
+
+# Except for .gitkeep
+!.gitkeep
