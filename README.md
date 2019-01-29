@@ -7,7 +7,7 @@
 
 ### 构建 Kafka 集群
 ``` bash
-$ IP=<your ip> docker-compose -f kafka/docker-compose.yml up -d
+$ docker-compose -f kafka/docker-compose.yml up -d
 ```
 
 若构建下载过程等待连接超时，可尝试在 docker 的 `daemon.json` 中添加注册镜像：
@@ -16,3 +16,9 @@ $ IP=<your ip> docker-compose -f kafka/docker-compose.yml up -d
     "registry-mirrors":["https://docker.mirrors.ustc.edu.cn"]
 }
 ```
+
+### hosts 域名配置
+
+配置 /etc/hosts 文件，将域名 kfk1、kfk2、kfk3 与本地 IP 地址相关联；
+
+
