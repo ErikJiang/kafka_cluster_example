@@ -1,6 +1,11 @@
 # kafka_tutorial
 kafka tutorial
 
+<p align="left">
+  <img src="https://img.shields.io/badge/Go%20version-1.11-brightgreen.svg" />
+  <img src="https://img.shields.io/badge/License-MIT-blue.svg" />
+</p>
+
 ### 构建 Kafka 集群
 ``` bash
 $ IP=<your ip> docker-compose -f kafka/docker-compose.yml up -d
