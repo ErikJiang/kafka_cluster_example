@@ -53,14 +53,16 @@ services:
     container_name: kfk1
     ports:
       - "19092:19092"
+    expose:
+      - "19092"
     depends_on:
       - zk1
       - zk2
       - zk3
     environment:
       KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: ${IP}:12181,${IP}:22181,${IP}:32181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://${IP}:19092
+      KAFKA_ZOOKEEPER_CONNECT: zk1:12181,zk2:22181,zk3:32181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kfk1:19092
     volumes:
       - ./kfk1/data:/var/lib/kafka/data
  
@@ -69,14 +71,16 @@ services:
     container_name: kfk2
     ports:
       - "29092:29092"
+    expose:
+      - "29092"
     depends_on:
       - zk1
       - zk2
       - zk3
     environment:
       KAFKA_BROKER_ID: 2
-      KAFKA_ZOOKEEPER_CONNECT: ${IP}:12181,${IP}:22181,${IP}:32181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://${IP}:29092
+      KAFKA_ZOOKEEPER_CONNECT: zk1:12181,zk2:22181,zk3:32181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kfk2:29092
     volumes:
       - ./kfk2/data:/var/lib/kafka/data
  
@@ -85,13 +89,15 @@ services:
     container_name: kfk3
     ports:
       - "39092:39092"
+    expose:
+      - "39092"
     depends_on:
       - zk1
       - zk2
       - zk3
     environment:
       KAFKA_BROKER_ID: 3
-      KAFKA_ZOOKEEPER_CONNECT: ${IP}:12181,${IP}:22181,${IP}:32181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://${IP}:39092
+      KAFKA_ZOOKEEPER_CONNECT: zk1:12181,zk2:22181,zk3:32181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kfk3:39092
     volumes:
       - ./kfk3/data:/var/lib/kafka/data

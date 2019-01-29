@@ -74,11 +74,11 @@ func action(c *cli.Context) error {
 	clientID := c.String("kafka-cli-id")
 	topic := c.String("kafka-topic")
 
-	log.Info().Msgf("listen-address : %s \n", listenAddr)
-	log.Info().Msgf("kafka-brokers : %s \n", brokerUrls)
-	log.Info().Msgf("kafka-verbose : %t \n", verbose)
-	log.Info().Msgf("kafka-cli-id : %s \n", clientID)
-	log.Info().Msgf("kafka-topic : %s \n", topic)
+	log.Info().Msgf("listen-address: %s", listenAddr)
+	log.Info().Msgf("kafka-brokers: %s", brokerUrls)
+	log.Info().Msgf("kafka-verbose: %t", verbose)
+	log.Info().Msgf("kafka-cli-id: %s", clientID)
+	log.Info().Msgf("kafka-topic: %s", topic)
 
 	producer, err := kafka.Configure(strings.Split(brokerUrls, ","), clientID, topic)
 	if err != nil {
