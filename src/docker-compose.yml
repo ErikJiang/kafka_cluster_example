@@ -1,0 +1,34 @@
+version: '3'
+services:
+  produce:
+    build:
+      context: .
+      dockerfile: ./produce
+    container_name: produce
+    ports: 
+      - "9000:9000"
+    environment:
+      LISTEN_ADDRESS: '0.0.0.0:9000'
+      KAFKA_BROKERS: 'kfk1:19092,kfk2:29092,kfk3:39092'
+      KAFKA_CLIENT_ID: 'my-client'
+      KAFKA_TOPIC: 'foo'
+
+  consume1:
+    build:
+      context: .
+      dockerfile: ./consume
+    container_name: consume1
+    environment:
+      KAFKA_BROKERS: 'kfk1:19092,kfk2:29092,kfk3:39092'
+      KAFKA_CLIENT_ID: 'my-client'
+      KAFKA_TOPIC: 'foo'
+
+  consume2:
+    build:
+      context: .
+      dockerfile: ./consume
+    container_name: consume2
+    environment:
+      KAFKA_BROKERS: 'kfk1:19092,kfk2:29092,kfk3:39092'
+      KAFKA_CLIENT_ID: 'my-client'
+      KAFKA_TOPIC: 'foo'
