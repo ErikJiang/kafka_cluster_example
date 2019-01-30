@@ -100,7 +100,7 @@ func action(c *cli.Context) error {
 			log.Error().Msgf("error while receiving message: %s", err.Error())
 			continue
 		}
-		log.Debug().Msgf("blablablablablabla: %v", m)
+
 		// value, err := snappy.NewCompressionCodec().Decode(m.Value)
 		// if err != nil {
 		// 	log.Error().Msgf("error while decode message: %v", err)
