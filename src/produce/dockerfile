@@ -59,4 +59,4 @@ COPY --from=builder /src/app/produce /produce
 EXPOSE 9000
 
 # 运行
-ENTRYPOINT [ "/produce", "--kv=true", "--kb=kfk1:19092,kfk2:29092,kfk3:39092" ]
+ENTRYPOINT [ "/produce" ]

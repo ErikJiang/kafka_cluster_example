@@ -12,7 +12,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/ErikJiang/kafka_tutorial/src/apiServer/kafka"
+	"github.com/ErikJiang/kafka_tutorial/src/produce/kafka"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 	"github.com/urfave/cli"
@@ -20,8 +20,8 @@ import (
 
 func main() {
 	app := cli.NewApp()
-	app.Name = "kafka Tutorial API Server Commandline"
-	app.Usage = "Run API Server"
+	app.Name = "kafka Tutorial Produce Commandline"
+	app.Usage = "Run Produce"
 	app.Version = "1.0.0"
 	app.Flags = args()
 	sort.Sort(cli.FlagsByName(app.Flags))
@@ -43,7 +43,7 @@ func args() []cli.Flag {
 		},
 		cli.StringFlag{
 			Name:  "kafka-brokers, kb",
-			Value: "localhost:19092,localhost:29092,localhost:39092",
+			Value: "kfk1:19092,kfk2:29092,kfk3:39092",
 			Usage: "Kafka brokers in comma separated value",
 		},
 		cli.BoolFlag{
@@ -51,7 +51,7 @@ func args() []cli.Flag {
 			Usage: "Kafka verbose logging",
 		},
 		cli.StringFlag{
-			Name:  "kafka-cli-id, kci",
+			Name:  "kafka-client-id, kci",
 			Value: "kafka-client",
 			Usage: "Kafka client id to connect",
 		},
@@ -65,19 +65,19 @@ func args() []cli.Flag {
 
 // action 创建 Kafka 生产者并启动路由服务
 func action(c *cli.Context) error {
-	log.Info().Msg("kafka tutorial api server.")
+	log.Info().Msg("kafka tutorial produce.")
 	log.Info().Msg("(c) Erik 2019")
 
 	listenAddr := c.String("listen-address")
 	brokerUrls := c.String("kafka-brokers")
 	verbose := c.Bool("kafka-verbose")
-	clientID := c.String("kafka-cli-id")
+	clientID := c.String("kafka-client-id")
 	topic := c.String("kafka-topic")
 
 	log.Info().Msgf("listen-address: %s", listenAddr)
 	log.Info().Msgf("kafka-brokers: %s", brokerUrls)
 	log.Info().Msgf("kafka-verbose: %t", verbose)
-	log.Info().Msgf("kafka-cli-id: %s", clientID)
+	log.Info().Msgf("kafka-client-id: %s", clientID)
 	log.Info().Msgf("kafka-topic: %s", topic)
 
 	producer, err := kafka.Configure(strings.Split(brokerUrls, ","), clientID, topic)

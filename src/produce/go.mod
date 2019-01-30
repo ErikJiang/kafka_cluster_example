@@ -1,4 +1,4 @@
-module github.com/ErikJiang/kafka_tutorial/src/apiServer
+module github.com/ErikJiang/kafka_tutorial/src/produce
 
 require (
 	github.com/gin-contrib/sse v0.0.0-20190125020943-a7658810eb74 // indirect
