@@ -1,17 +1,19 @@
 package main
 
 import (
-	"context"
-	"time"
+	// "context"
+	// "time"
 	"os"
 	"os/signal"
 	"sort"
 	"strings"
-	"syscall"
-	"errors"
+	// "syscall"
+	// "errors"
+	"sync"
 
 	"github.com/rs/zerolog/log"
 	"github.com/urfave/cli"
+	"github.com/Shopify/sarama"
 	"github.com/bsm/sarama-cluster"
 )
 
@@ -78,71 +80,17 @@ func action(c *cli.Context) error {
 	log.Info().Msgf("kafka-topic: %s", topic)
 	log.Info().Msgf("kafka-consumer-group: %s", consumerGroup)
 
-	// sigchan := make(chan os.Signal, 1)
-	// signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
-
-	// config := kafka.ReaderConfig{
-	// 	Brokers: strings.Split(brokerUrls, ","),
-	// 	GroupID: clientID,
-	// 	Topic: topic,
-	// 	MinBytes: 10e3,	// 10KB
-	// 	MaxBytes: 10e6,	// 10MB
-	// 	MaxWait: 1 * time.Second,
-	// 	ReadLagInterval: -1,
-	// }
-
-	r := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:   strings.Split(brokerUrls, ","),
-		// Brokers:   []string{"kfk1:19092"},
-		// GroupID: "group-id",
-		Topic:     topic,
-		MinBytes:  1, 	// 1B
-		MaxBytes:  10e6, // 10MB
-		MaxWait:  1 * time.Second,
-		QueueCapacity:    1024,
-		SessionTimeout:   10 * time.Second,
-		RebalanceTimeout: 5 * time.Second,
-		
-	})
-	defer r.Close()
-	r.SetOffset(30)
-	errChan := make(chan error, 1)
-	go func() {
-		errChan <- loop(r)
-	}()	
-
-	sigchan := make(chan os.Signal, 1)
-	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
-
-	select {
-		case <- sigchan:
-			log.Info().Msgf("sign chan exit")
-			return errors.New("sign chan exit")
-		case err := <- errChan:
-			if err != nil {
-				log.Error().Err(err).Msg("error while runing api, exiting...")
-				return err
-			}
-	}
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	go clusterConsumer(wg, strings.Split(brokerUrls, ","), []string{"hello"}, "consume-group")
+	wg.Wait();
 
 	return nil
-
-}
-
-func loop(r *kafka.Reader) error {
-	for {
-		m, err := r.ReadMessage(context.Background())
-		if err != nil {
-			log.Error().Msgf("ReadMessage err: %v", err)
-			return err
-		}
-		log.Debug().Msgf("message at offset %d: %s = %s\n", m.Offset, string(m.Key), string(m.Value))
-	}
 }
 
 
 // 支持brokers cluster的消费者
-func clusterConsumer(wg *sync.WaitGroup, brokers, topics []string, groupId string)  {
+func clusterConsumer(wg *sync.WaitGroup, brokers, topics []string, groupID string)  {
     defer wg.Done()
     config := cluster.NewConfig()
     config.Consumer.Return.Errors = true
@@ -150,9 +98,9 @@ func clusterConsumer(wg *sync.WaitGroup, brokers, topics []string, groupId strin
     config.Consumer.Offsets.Initial = sarama.OffsetNewest
  
     // init consumer
-    consumer, err := cluster.NewConsumer(brokers, groupId, topics, config)
+    consumer, err := cluster.NewConsumer(brokers, groupID, topics, config)
     if err != nil {
-        log.Printf("%s: sarama.NewSyncProducer err, message=%s \n", groupId, err)
+        log.Debug().Msgf("%s: sarama.NewSyncProducer err, message=%s \n", groupID, err)
         return
     }
     defer consumer.Close()
@@ -164,14 +112,14 @@ func clusterConsumer(wg *sync.WaitGroup, brokers, topics []string, groupId strin
     // consume errors
     go func() {
         for err := range consumer.Errors() {
-            log.Printf("%s:Error: %s\n", groupId, err.Error())
+            log.Debug().Msgf("%s:Error: %s\n", groupID, err.Error())
         }
     }()
  
     // consume notifications
     go func() {
         for ntf := range consumer.Notifications() {
-            log.Printf("%s:Rebalanced: %+v \n", groupId, ntf)
+            log.Debug().Msgf("%s:Rebalanced: %+v \n", groupID, ntf)
         }
     }()
  
@@ -182,7 +130,7 @@ func clusterConsumer(wg *sync.WaitGroup, brokers, topics []string, groupId strin
         select {
         case msg, ok := <-consumer.Messages():
             if ok {
-                fmt.Fprintf(os.Stdout, "%s:%s/%d/%d\t%s\t%s\n", groupId, msg.Topic, msg.Partition, msg.Offset, msg.Key, msg.Value)
+                log.Debug().Msgf("%s:%s/%d/%d\t%s\t%s\n", groupID, msg.Topic, msg.Partition, msg.Offset, msg.Key, msg.Value)
                 consumer.MarkOffset(msg, "")  // mark message as processed
                 successes++
             }
@@ -190,5 +138,5 @@ func clusterConsumer(wg *sync.WaitGroup, brokers, topics []string, groupId strin
             break Loop
         }
     }
-    fmt.Fprintf(os.Stdout, "%s consume %d messages \n", groupId, successes)
+    log.Debug().Msgf("%s consume %d messages \n", groupID, successes)
 }
