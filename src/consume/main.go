@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 	"os"
-	// "os/signal"
+	"os/signal"
 	"sort"
 	"strings"
-	// "syscall"
-	// "errors"
+	"syscall"
+	"errors"
 
 	"github.com/rs/zerolog/log"
 	"github.com/urfave/cli"
@@ -61,6 +61,7 @@ func args() []cli.Flag {
 	}
 }
 
+
 // action 创建 Kafka 生产者并启动路由服务
 func action(c *cli.Context) error {
 	log.Info().Msg("kafka tutorial consume.")
@@ -81,34 +82,61 @@ func action(c *cli.Context) error {
 	// sigchan := make(chan os.Signal, 1)
 	// signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
 
-	config := kafka.ReaderConfig{
-		Brokers: strings.Split(brokerUrls, ","),
-		GroupID: clientID,
-		Topic: topic,
-		MinBytes: 10e3,	// 10KB
-		MaxBytes: 10e6,	// 10MB
-		MaxWait: 1 * time.Second,
-		ReadLagInterval: -1,
+	// config := kafka.ReaderConfig{
+	// 	Brokers: strings.Split(brokerUrls, ","),
+	// 	GroupID: clientID,
+	// 	Topic: topic,
+	// 	MinBytes: 10e3,	// 10KB
+	// 	MaxBytes: 10e6,	// 10MB
+	// 	MaxWait: 1 * time.Second,
+	// 	ReadLagInterval: -1,
+	// }
+
+	r := kafka.NewReader(kafka.ReaderConfig{
+		Brokers:   strings.Split(brokerUrls, ","),
+		// Brokers:   []string{"kfk1:19092"},
+		// GroupID: "group-id",
+		Topic:     topic,
+		MinBytes:  1, 	// 1B
+		MaxBytes:  10e6, // 10MB
+		MaxWait:  1 * time.Second,
+		QueueCapacity:    1024,
+		SessionTimeout:   10 * time.Second,
+		RebalanceTimeout: 5 * time.Second,
+		
+	})
+	defer r.Close()
+	r.SetOffset(30)
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- loop(r)
+	}()	
+
+	sigchan := make(chan os.Signal, 1)
+	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
+
+	select {
+		case <- sigchan:
+			log.Info().Msgf("sign chan exit")
+			return errors.New("sign chan exit")
+		case err := <- errChan:
+			if err != nil {
+				log.Error().Err(err).Msg("error while runing api, exiting...")
+				return err
+			}
 	}
 
-	consumer := kafka.NewReader(config)
-	defer consumer.Close()
+	return nil
 
+}
+
+func loop(r *kafka.Reader) error {
 	for {
-		m, err := consumer.ReadMessage(context.Background())
+		m, err := r.ReadMessage(context.Background())
 		if err != nil {
-			log.Error().Msgf("error while receiving message: %s", err.Error())
-			continue
+			log.Error().Msgf("ReadMessage err: %v", err)
+			return err
 		}
-
-		// value, err := snappy.NewCompressionCodec().Decode(m.Value)
-		// if err != nil {
-		// 	log.Error().Msgf("error while decode message: %v", err)
-		// 	continue
-		// }
-
-		// log.Info().Msgf("message at topic: %v, partition: %v, offset: %v, value: %s", m.Topic, m.Partition, m.Offset, string(value))
-		log.Info().Msgf("message at topic/partition/offset %v/%v/%v: %s = %s\n", m.Topic, m.Partition, m.Offset, string(m.Key), string(m.Value))
+		log.Debug().Msgf("message at offset %d: %s = %s\n", m.Offset, string(m.Key), string(m.Value))
 	}
-
 }
