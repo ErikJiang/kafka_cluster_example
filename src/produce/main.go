@@ -12,10 +12,18 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/ErikJiang/kafka_tutorial/src/produce/kafka"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 	"github.com/urfave/cli"
+	"github.com/Shopify/sarama"
+)
+
+var (
+	ListenAddr string
+	BrokerUrls string
+	Verbose bool
+	ClientID string
+	Topic string
 )
 
 func main() {
@@ -68,30 +76,56 @@ func action(c *cli.Context) error {
 	log.Info().Msg("kafka tutorial produce.")
 	log.Info().Msg("(c) Erik 2019")
 
-	listenAddr := c.String("listen-address")
-	brokerUrls := c.String("kafka-brokers")
-	verbose := c.Bool("kafka-verbose")
-	clientID := c.String("kafka-client-id")
-	topic := c.String("kafka-topic")
+	ListenAddr = c.String("listen-address")
+	BrokerUrls = c.String("kafka-brokers")
+	Verbose = c.Bool("kafka-verbose")
+	ClientID = c.String("kafka-client-id")
+	Topic = c.String("kafka-topic")
 
-	log.Info().Msgf("listen-address: %s", listenAddr)
-	log.Info().Msgf("kafka-brokers: %s", brokerUrls)
-	log.Info().Msgf("kafka-verbose: %t", verbose)
-	log.Info().Msgf("kafka-client-id: %s", clientID)
-	log.Info().Msgf("kafka-topic: %s", topic)
+	log.Info().Msgf("listen-address: %s", ListenAddr)
+	log.Info().Msgf("kafka-brokers: %s", BrokerUrls)
+	log.Info().Msgf("kafka-verbose: %t", Verbose)
+	log.Info().Msgf("kafka-client-id: %s", ClientID)
+	log.Info().Msgf("kafka-topic: %s", Topic)
 
-	producer, err := kafka.Configure(strings.Split(brokerUrls, ","), clientID, topic)
+	config := sarama.NewConfig()
+
+	config.Producer.RequiredAcks = sarama.WaitForAll
+
+	config.Producer.Partitioner = sarama.NewRandomPartitioner
+
+	config.Producer.Return.Successes = true
+
+	config.Producer.Return.Errors = true
+
+	config.Version = sarama.V2_1_0_0
+
+	log.Info().Msg("start make producer")
+
+	producer, err := sarama.NewAsyncProducer(strings.Split(BrokerUrls, ","), config)
 	if err != nil {
-		log.Error().Msgf("config kafka producer fail, err: %v", err)
+		log.Error().Msgf("%v", err)
 		return err
 	}
-	defer producer.Close()
+	defer producer.AsyncClose()
 
+	log.Info().Msg("start goroutine")
+	go func(p sarama.AsyncProducer) {
+		for {
+			select {
+				case msg := <- p.Successes():
+					log.Info().Msgf("success: offset: %d, timestamp: %s, partitions: %s", msg.Offset, msg.Timestamp.String(), msg.Partition)
+				case fail := <- p.Errors():
+					log.Error().Msgf("fail: %v", fail)
+			}
+		}
+	}(producer)
+
+	log.Info().Msgf("starting server at %s", ListenAddr)
 	errChan := make(chan error, 1)
-	go func() {
-		log.Info().Msgf("starting server at %s", listenAddr)
-		errChan <- server(listenAddr)
-	}()
+	go func(p sarama.AsyncProducer) {
+		errChan <- server(p)
+	}(producer)
 
 	var signalChan = make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
@@ -108,55 +142,43 @@ func action(c *cli.Context) error {
 	return nil
 }
 
-func server(listenAddr string) error {
+func server(producer sarama.AsyncProducer) error {
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New()
-	router.POST("/api/v1/data", postDataToKafka)
-	for _, routeInfo := range router.Routes() {
-		log.Debug().
-			Str("path", routeInfo.Path).
-			Str("handler", routeInfo.Handler).
-			Str("method", routeInfo.Method).
-			Msg("registered routes")
-	}
-	return router.Run(listenAddr)
-}
+	router.POST("/api/v1/data", func(ctx *gin.Context) {
+		parent := context.Background()
+		defer parent.Done()
 
-func postDataToKafka(ctx *gin.Context) {
-	parent := context.Background()
-	defer parent.Done()
+		form := &struct {
+			Text string `form:"text" json:"text"`
+		}{}
 
-	form := &struct {
-		Text string `form:"text" json:"text"`
-	}{}
+		ctx.Bind(form)
+		formInBytes, err := json.Marshal(form)
+		if err != nil {
+			ctx.JSON(http.StatusUnprocessableEntity, map[string]interface{}{
+				"error": map[string]interface{}{
+					"message": fmt.Sprintf("error while marshalling json: %s", err.Error()),
+				},
+			})
+			ctx.Abort()
+			return
+		}
 
-	ctx.Bind(form)
-	formInBytes, err := json.Marshal(form)
-	if err != nil {
-		ctx.JSON(http.StatusUnprocessableEntity, map[string]interface{}{
-			"error": map[string]interface{}{
-				"message": fmt.Sprintf("error while marshalling json: %s", err.Error()),
-			},
+		// send message to kafka
+		msg := &sarama.ProducerMessage{
+			Topic: Topic,
+		}
+		msg.Value = sarama.ByteEncoder(formInBytes)
+		producer.Input() <- msg
+
+		ctx.JSON(http.StatusOK, map[string]interface{}{
+			"success": true,
+			"message": "success push data into kafka",
+			"data": form,
 		})
-		ctx.Abort()
-		return
-	}
-
-	err = kafka.PushMsg(parent, nil, formInBytes)
-	if err != nil {
-		ctx.JSON(http.StatusUnprocessableEntity, map[string]interface{}{
-			"error": map[string]interface{}{
-				"message": fmt.Sprintf("error while push message into kafka: %s", err.Error()),
-			},
-		})
-		ctx.Abort()
-		return
-	}
-
-	ctx.JSON(http.StatusOK, map[string]interface{}{
-		"success": true,
-		"message": "success push data into kafka",
-		"data": form,
 	})
+
+	return router.Run(ListenAddr)
 }
