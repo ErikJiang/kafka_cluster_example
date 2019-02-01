@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -21,7 +20,6 @@ import (
 var (
 	ListenAddr string
 	BrokerUrls string
-	Verbose    bool
 	ClientID   string
 	Topic      string
 )
@@ -34,11 +32,7 @@ func main() {
 	app.Flags = args()
 	sort.Sort(cli.FlagsByName(app.Flags))
 	app.Action = action
-	err := app.Run(os.Args)
-	if err != nil {
-		log.Error().Msgf("error: %v", err)
-	}
-	log.Debug().Msgf("args: %v", os.Args)
+	app.Run(os.Args)
 }
 
 // args 命令行参数定义
@@ -53,10 +47,6 @@ func args() []cli.Flag {
 			Name:  "kafka-brokers, kb",
 			Value: "kfk1:19092,kfk2:29092,kfk3:39092",
 			Usage: "Kafka brokers in comma separated value",
-		},
-		cli.BoolFlag{
-			Name:  "kafka-verbose, kv",
-			Usage: "Kafka verbose logging",
 		},
 		cli.StringFlag{
 			Name:  "kafka-client-id, kci",
@@ -78,13 +68,11 @@ func action(c *cli.Context) error {
 
 	ListenAddr = c.String("listen-address")
 	BrokerUrls = c.String("kafka-brokers")
-	Verbose = c.Bool("kafka-verbose")
 	ClientID = c.String("kafka-client-id")
 	Topic = c.String("kafka-topic")
 
 	log.Info().Msgf("listen-address: %s", ListenAddr)
 	log.Info().Msgf("kafka-brokers: %s", BrokerUrls)
-	log.Info().Msgf("kafka-verbose: %t", Verbose)
 	log.Info().Msgf("kafka-client-id: %s", ClientID)
 	log.Info().Msgf("kafka-topic: %s", Topic)
 
@@ -109,41 +97,36 @@ func action(c *cli.Context) error {
 	}
 	defer producer.AsyncClose()
 
-	log.Info().Msg("start goroutine")
-	go func(p sarama.AsyncProducer) {
-		for {
-			select {
-			case msg := <-p.Successes():
-				log.Info().Msgf("success: offset: %d, timestamp: %s, partitions: %d",
-					msg.Offset, msg.Timestamp.String(), msg.Partition)
-			case fail := <-p.Errors():
-				log.Error().Msgf("fail: %v", fail)
-			}
-		}
-	}(producer)
-
 	log.Info().Msgf("starting server at %s", ListenAddr)
 	errChan := make(chan error, 1)
 	go func(p sarama.AsyncProducer) {
-		errChan <- server(p)
+		errChan <- httpServer(p)
 	}(producer)
 
 	var signalChan = make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
-	select {
-	case <-signalChan:
-		log.Info().Msg("got an interrupt, exiting...")
-		return errors.New("Got an interrupt exiting")
-	case err := <-errChan:
-		if err != nil {
+
+Loop:
+	for {
+		select {
+		case succ := <-producer.Successes():
+			log.Info().Msgf("success: offset: %d, timestamp: %s, partitions: %d",
+				succ.Offset, succ.Timestamp.String(), succ.Partition)
+		case fail := <-producer.Errors():
+			log.Error().Err(fail).Msg("fail while produce message, exiting...")
+			break Loop
+		case <-signalChan:
+			log.Info().Msg("got an interrupt, exiting...")
+			break Loop
+		case err := <-errChan:
 			log.Error().Err(err).Msg("error while runing api, exiting...")
-			return err
+			break Loop
 		}
 	}
 	return nil
 }
 
-func server(producer sarama.AsyncProducer) error {
+func httpServer(producer sarama.AsyncProducer) error {
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New()
