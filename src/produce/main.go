@@ -12,18 +12,18 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/Shopify/sarama"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 	"github.com/urfave/cli"
-	"github.com/Shopify/sarama"
 )
 
 var (
 	ListenAddr string
 	BrokerUrls string
-	Verbose bool
-	ClientID string
-	Topic string
+	Verbose    bool
+	ClientID   string
+	Topic      string
 )
 
 func main() {
@@ -113,10 +113,11 @@ func action(c *cli.Context) error {
 	go func(p sarama.AsyncProducer) {
 		for {
 			select {
-				case msg := <- p.Successes():
-					log.Info().Msgf("success: offset: %d, timestamp: %s, partitions: %s", msg.Offset, msg.Timestamp.String(), msg.Partition)
-				case fail := <- p.Errors():
-					log.Error().Msgf("fail: %v", fail)
+			case msg := <-p.Successes():
+				log.Info().Msgf("success: offset: %d, timestamp: %s, partitions: %d",
+					msg.Offset, msg.Timestamp.String(), msg.Partition)
+			case fail := <-p.Errors():
+				log.Error().Msgf("fail: %v", fail)
 			}
 		}
 	}(producer)
@@ -130,10 +131,10 @@ func action(c *cli.Context) error {
 	var signalChan = make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
 	select {
-	case <- signalChan:
+	case <-signalChan:
 		log.Info().Msg("got an interrupt, exiting...")
 		return errors.New("Got an interrupt exiting")
-	case err := <- errChan:
+	case err := <-errChan:
 		if err != nil {
 			log.Error().Err(err).Msg("error while runing api, exiting...")
 			return err
@@ -176,7 +177,7 @@ func server(producer sarama.AsyncProducer) error {
 		ctx.JSON(http.StatusOK, map[string]interface{}{
 			"success": true,
 			"message": "success push data into kafka",
-			"data": form,
+			"data":    form,
 		})
 	})
 
