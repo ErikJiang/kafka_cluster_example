@@ -3,6 +3,7 @@ module github.com/ErikJiang/kafka_tutorial/src/produce
 require (
 	github.com/DataDog/zstd v1.3.5 // indirect
 	github.com/Shopify/sarama v1.20.1
+	github.com/Shopify/toxiproxy v2.1.4+incompatible // indirect
 	github.com/eapache/go-resiliency v1.1.0 // indirect
 	github.com/eapache/go-xerial-snappy v0.0.0-20180814174437-776d5712da21 // indirect
 	github.com/eapache/queue v1.1.0 // indirect
@@ -17,7 +18,6 @@ require (
 	github.com/pierrec/lz4 v2.0.7+incompatible // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20181016184325-3113b8401b8a // indirect
 	github.com/rs/zerolog v1.11.0
-	github.com/segmentio/kafka-go v0.2.2
 	github.com/stretchr/testify v1.3.0 // indirect
 	github.com/ugorji/go/codec v0.0.0-20190128213124-ee1426cffec0 // indirect
 	github.com/urfave/cli v1.20.0

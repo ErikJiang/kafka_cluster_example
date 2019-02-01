@@ -22,3 +22,7 @@ $ docker-compose -f kafka/docker-compose.yml up -d
 配置 /etc/hosts 文件，将域名 kfk1、kfk2、kfk3 与本地 IP 地址相关联；
 
 
+### 待完成
+
+* 消费组并发测试
+* 编写 makefile

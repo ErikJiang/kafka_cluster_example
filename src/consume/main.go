@@ -37,16 +37,19 @@ func args() []cli.Flag {
 			Name:  "kafka-brokers, kb",
 			Value: "kfk1:19092,kfk2:29092,kfk3:39092",
 			Usage: "Kafka brokers in comma separated value",
+			EnvVar: "KAFKA_BROKERS",
 		},
 		cli.StringFlag{
 			Name:  "kafka-consumer-group, kcg",
 			Value: "consumer-group",
 			Usage: "Kafka consumer group",
+			EnvVar: "KAFKA_CONSUMER_GROUP_ID",
 		},
 		cli.StringFlag{
 			Name:  "kafka-topic, kt",
 			Value: "hello",
 			Usage: "Kafka topic to push",
+			EnvVar: "KAFKA_TOPIC",
 		},
 	}
 }

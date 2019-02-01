@@ -22,7 +22,6 @@ import (
 var (
 	ListenAddr string
 	BrokerUrls string
-	ClientID   string
 	Topic      string
 )
 
@@ -44,21 +43,19 @@ func args() []cli.Flag {
 			Name:  "listen-address, la",
 			Value: "0.0.0.0:9000",
 			Usage: "Listen address for api",
+			EnvVar: "LISTEN_ADDRESS",
 		},
 		cli.StringFlag{
 			Name:  "kafka-brokers, kb",
 			Value: "kfk1:19092,kfk2:29092,kfk3:39092",
 			Usage: "Kafka brokers in comma separated value",
-		},
-		cli.StringFlag{
-			Name:  "kafka-client-id, kci",
-			Value: "kafka-client",
-			Usage: "Kafka client id to connect",
+			EnvVar: "KAFKA_BROKERS",
 		},
 		cli.StringFlag{
 			Name:  "kafka-topic, kt",
 			Value: "hello",
 			Usage: "Kafka topic to push",
+      		EnvVar: "KAFKA_TOPIC",
 		},
 	}
 }
@@ -70,12 +67,10 @@ func action(c *cli.Context) error {
 
 	ListenAddr = c.String("listen-address")
 	BrokerUrls = c.String("kafka-brokers")
-	ClientID = c.String("kafka-client-id")
 	Topic = c.String("kafka-topic")
 
 	log.Info().Msgf("listen-address: %s", ListenAddr)
 	log.Info().Msgf("kafka-brokers: %s", BrokerUrls)
-	log.Info().Msgf("kafka-client-id: %s", ClientID)
 	log.Info().Msgf("kafka-topic: %s", Topic)
 
 	config := sarama.NewConfig()
