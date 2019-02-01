@@ -5,6 +5,8 @@
   <img src="https://img.shields.io/badge/License-MIT-blue.svg" />
 </p>
 
+> 该项目现处于施工状态
+
 ### 构建 Kafka 集群
 ``` bash
 $ docker-compose -f kafka/docker-compose.yml up -d
@@ -15,6 +17,15 @@ $ docker-compose -f kafka/docker-compose.yml up -d
 {
     "registry-mirrors":["https://docker.mirrors.ustc.edu.cn"]
 }
+```
+
+### 添加依赖(todo)
+``` bash
+go mod vendor
+```
+运行过程若出现下载 module 失败，或 build 缓慢，可尝试设置`GOPROXY`环境变量：
+``` shell
+$ export GOPROXY=https://goproxy.io
 ```
 
 ### 构建 Produce & Consume 服务
