@@ -17,6 +17,11 @@ $ docker-compose -f kafka/docker-compose.yml up -d
 }
 ```
 
+### 构建 Produce & Consume 服务
+``` bash
+$ docker-compose -f src/docker-compose.yml up -d
+```
+
 ### hosts 域名配置
 
 配置 /etc/hosts 文件，将域名 kfk1、kfk2、kfk3 与本地 IP 地址相关联；
