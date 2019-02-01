@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"crypto/sha1"
 	"encoding/json"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"os"
@@ -138,7 +140,16 @@ func httpServer(producer sarama.AsyncProducer) error {
 			Text string `form:"text" json:"text"`
 		}{}
 
-		ctx.Bind(form)
+		err := ctx.ShouldBindJSON(form)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, map[string]interface{}{
+				"error": map[string]interface{}{
+					"message": fmt.Sprintf("error while bind request param: %s", err.Error()),
+				},
+			})
+			ctx.Abort()
+			return
+		}
 		formInBytes, err := json.Marshal(form)
 		if err != nil {
 			ctx.JSON(http.StatusUnprocessableEntity, map[string]interface{}{
@@ -151,9 +162,8 @@ func httpServer(producer sarama.AsyncProducer) error {
 		}
 
 		// send message to kafka
-		msg := &sarama.ProducerMessage{
-			Topic: Topic,
-		}
+		msg := &sarama.ProducerMessage{Topic: Topic}
+		msg.Key = sarama.ByteEncoder(MakeSha1(form.Text))
 		msg.Value = sarama.ByteEncoder(formInBytes)
 		producer.Input() <- msg
 
@@ -165,4 +175,11 @@ func httpServer(producer sarama.AsyncProducer) error {
 	})
 
 	return router.Run(ListenAddr)
+}
+
+// MakeSha1 计算字符串的 sha1 hash 值
+func MakeSha1(source string) string {
+	sha1Hash := sha1.New()
+	sha1Hash.Write([]byte(source))
+	return hex.EncodeToString(sha1Hash.Sum(nil))
 }

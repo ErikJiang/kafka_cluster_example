@@ -1,16 +1,13 @@
 package main
 
 import (
-	// "context"
-	// "time"
+	"encoding/json"
 	"os"
 	"os/signal"
 	"sort"
 	"strings"
-
-	// "syscall"
-	// "errors"
 	"sync"
+	"syscall"
 
 	"github.com/Shopify/sarama"
 	"github.com/bsm/sarama-cluster"
@@ -41,19 +38,10 @@ func args() []cli.Flag {
 			Value: "kfk1:19092,kfk2:29092,kfk3:39092",
 			Usage: "Kafka brokers in comma separated value",
 		},
-		cli.BoolFlag{
-			Name:  "kafka-verbose, kv",
-			Usage: "Kafka verbose logging",
-		},
 		cli.StringFlag{
 			Name:  "kafka-consumer-group, kcg",
 			Value: "consumer-group",
 			Usage: "Kafka consumer group",
-		},
-		cli.StringFlag{
-			Name:  "kafka-client-id, kci",
-			Value: "kafka-client",
-			Usage: "Kafka client id to connect",
 		},
 		cli.StringFlag{
 			Name:  "kafka-topic, kt",
@@ -69,20 +57,16 @@ func action(c *cli.Context) error {
 	log.Info().Msg("(c) Erik 2019")
 
 	brokerUrls := c.String("kafka-brokers")
-	verbose := c.Bool("kafka-verbose")
-	clientID := c.String("kafka-client-id")
 	topic := c.String("kafka-topic")
 	consumerGroup := c.String("kafka-consumer-group")
 
 	log.Info().Msgf("kafka-brokers: %s", brokerUrls)
-	log.Info().Msgf("kafka-verbose: %t", verbose)
-	log.Info().Msgf("kafka-client-id: %s", clientID)
 	log.Info().Msgf("kafka-topic: %s", topic)
 	log.Info().Msgf("kafka-consumer-group: %s", consumerGroup)
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
-	go clusterConsumer(wg, strings.Split(brokerUrls, ","), []string{"hello"}, "consume-group")
+	go clusterConsumer(wg, strings.Split(brokerUrls, ","), []string{topic}, consumerGroup)
 	wg.Wait()
 
 	return nil
@@ -96,7 +80,7 @@ func clusterConsumer(wg *sync.WaitGroup, brokers, topics []string, groupID strin
 	config.Group.Return.Notifications = true
 	config.Consumer.Offsets.Initial = sarama.OffsetNewest
 
-	// init consumer
+	// 初始化消费者
 	consumer, err := cluster.NewConsumer(brokers, groupID, topics, config)
 	if err != nil {
 		log.Debug().Msgf("%s: sarama.NewSyncProducer err, message=%s \n", groupID, err)
@@ -104,33 +88,42 @@ func clusterConsumer(wg *sync.WaitGroup, brokers, topics []string, groupID strin
 	}
 	defer consumer.Close()
 
-	// trap SIGINT to trigger a shutdown
+	// 捕获终止中断信号触发程序退出
 	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, os.Interrupt)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 
-	// consume errors
+	// 消费错误信息
 	go func() {
 		for err := range consumer.Errors() {
 			log.Debug().Msgf("%s:Error: %s\n", groupID, err.Error())
 		}
 	}()
 
-	// consume notifications
+	// 消费通知信息
 	go func() {
 		for ntf := range consumer.Notifications() {
 			log.Debug().Msgf("%s:Rebalanced: %+v \n", groupID, ntf)
 		}
 	}()
 
-	// consume messages, watch signals
+	// 消费信息及监听信号
 	var successes int
 Loop:
 	for {
 		select {
 		case msg, ok := <-consumer.Messages():
 			if ok {
-				log.Debug().Msgf("%s:%s/%d/%d\t%s\t%s\n", groupID, msg.Topic, msg.Partition, msg.Offset, msg.Key, msg.Value)
-				consumer.MarkOffset(msg, "") // mark message as processed
+				value := struct {
+					Text string `form:"text" json:"text"`
+				}{}
+				err := json.Unmarshal(msg.Value, &value)
+				if err != nil {
+					log.Error().Msgf("consume message json format error, %v", err)
+					break Loop
+				}
+				log.Debug().Msgf("GroupID: %s, Topic: %s, Partition: %d, Offset: %d, Key: %s, Value: %s",
+					groupID, msg.Topic, msg.Partition, msg.Offset, msg.Key, value.Text)
+				consumer.MarkOffset(msg, "") // 标记信息为已处理
 				successes++
 			}
 		case <-signals:
