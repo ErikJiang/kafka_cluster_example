@@ -1,4 +1,4 @@
-# kafka_tutorial
+# :beetle: kafka_cluster_example
 
 <p align="left">
   <img src="https://img.shields.io/badge/Go%20version-1.11-brightgreen.svg" />
