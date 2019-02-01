@@ -82,6 +82,7 @@ func clusterConsumer(wg *sync.WaitGroup, brokers, topics []string, groupID strin
 	config.Consumer.Return.Errors = true
 	config.Group.Return.Notifications = true
 	config.Consumer.Offsets.Initial = sarama.OffsetNewest
+	config.Group.Mode = cluster.ConsumerModePartitions
 
 	// 初始化消费者
 	consumer, err := cluster.NewConsumer(brokers, groupID, topics, config)
