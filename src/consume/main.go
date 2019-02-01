@@ -1,19 +1,18 @@
 package main
 
 import (
-	"context"
-	"time"
+	"encoding/json"
 	"os"
 	"os/signal"
 	"sort"
 	"strings"
+	"sync"
 	"syscall"
-	"errors"
 
+	"github.com/Shopify/sarama"
+	"github.com/bsm/sarama-cluster"
 	"github.com/rs/zerolog/log"
 	"github.com/urfave/cli"
-	"github.com/segmentio/kafka-go"
-	// "github.com/segmentio/kafka-go/snappy"
 )
 
 func main() {
@@ -38,29 +37,22 @@ func args() []cli.Flag {
 			Name:  "kafka-brokers, kb",
 			Value: "kfk1:19092,kfk2:29092,kfk3:39092",
 			Usage: "Kafka brokers in comma separated value",
-		},
-		cli.BoolFlag{
-			Name:  "kafka-verbose, kv",
-			Usage: "Kafka verbose logging",
+			EnvVar: "KAFKA_BROKERS",
 		},
 		cli.StringFlag{
 			Name:  "kafka-consumer-group, kcg",
 			Value: "consumer-group",
 			Usage: "Kafka consumer group",
-		},
-		cli.StringFlag{
-			Name:  "kafka-client-id, kci",
-			Value: "kafka-client",
-			Usage: "Kafka client id to connect",
+			EnvVar: "KAFKA_CONSUMER_GROUP_ID",
 		},
 		cli.StringFlag{
 			Name:  "kafka-topic, kt",
 			Value: "hello",
 			Usage: "Kafka topic to push",
+			EnvVar: "KAFKA_TOPIC",
 		},
 	}
 }
-
 
 // action 创建 Kafka 生产者并启动路由服务
 func action(c *cli.Context) error {
@@ -68,75 +60,78 @@ func action(c *cli.Context) error {
 	log.Info().Msg("(c) Erik 2019")
 
 	brokerUrls := c.String("kafka-brokers")
-	verbose := c.Bool("kafka-verbose")
-	clientID := c.String("kafka-client-id")
 	topic := c.String("kafka-topic")
 	consumerGroup := c.String("kafka-consumer-group")
 
 	log.Info().Msgf("kafka-brokers: %s", brokerUrls)
-	log.Info().Msgf("kafka-verbose: %t", verbose)
-	log.Info().Msgf("kafka-client-id: %s", clientID)
 	log.Info().Msgf("kafka-topic: %s", topic)
 	log.Info().Msgf("kafka-consumer-group: %s", consumerGroup)
 
-	// sigchan := make(chan os.Signal, 1)
-	// signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
-
-	// config := kafka.ReaderConfig{
-	// 	Brokers: strings.Split(brokerUrls, ","),
-	// 	GroupID: clientID,
-	// 	Topic: topic,
-	// 	MinBytes: 10e3,	// 10KB
-	// 	MaxBytes: 10e6,	// 10MB
-	// 	MaxWait: 1 * time.Second,
-	// 	ReadLagInterval: -1,
-	// }
-
-	r := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:   strings.Split(brokerUrls, ","),
-		// Brokers:   []string{"kfk1:19092"},
-		// GroupID: "group-id",
-		Topic:     topic,
-		MinBytes:  1, 	// 1B
-		MaxBytes:  10e6, // 10MB
-		MaxWait:  1 * time.Second,
-		QueueCapacity:    1024,
-		SessionTimeout:   10 * time.Second,
-		RebalanceTimeout: 5 * time.Second,
-		
-	})
-	defer r.Close()
-	r.SetOffset(30)
-	errChan := make(chan error, 1)
-	go func() {
-		errChan <- loop(r)
-	}()	
-
-	sigchan := make(chan os.Signal, 1)
-	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
-
-	select {
-		case <- sigchan:
-			log.Info().Msgf("sign chan exit")
-			return errors.New("sign chan exit")
-		case err := <- errChan:
-			if err != nil {
-				log.Error().Err(err).Msg("error while runing api, exiting...")
-				return err
-			}
-	}
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	go clusterConsumer(wg, strings.Split(brokerUrls, ","), []string{topic}, consumerGroup)
+	wg.Wait()
 
 	return nil
-
 }
 
-func loop(r *kafka.Reader) error {
-	for {
-		m, err := r.ReadMessage(context.Background())
-		if err != nil {
-			log.Error().Msgf("ReadMessage err: %v", err)
-			return err
-		}
-		log.Debug().Msgf("message at offset %d: %s = %s\n", m.Offset, string(m.Key), string(m.Value))
+// 支持brokers cluster的消费者
+func clusterConsumer(wg *sync.WaitGroup, brokers, topics []string, groupID string) {
+	defer wg.Done()
+	config := cluster.NewConfig()
+	config.Consumer.Return.Errors = true
+	config.Group.Return.Notifications = true
+	config.Consumer.Offsets.Initial = sarama.OffsetNewest
+
+	// 初始化消费者
+	consumer, err := cluster.NewConsumer(brokers, groupID, topics, config)
+	if err != nil {
+		log.Debug().Msgf("%s: sarama.NewSyncProducer err, message=%s \n", groupID, err)
+		return
 	}
+	defer consumer.Close()
+
+	// 捕获终止中断信号触发程序退出
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+
+	// 消费错误信息
+	go func() {
+		for err := range consumer.Errors() {
+			log.Debug().Msgf("%s:Error: %s\n", groupID, err.Error())
+		}
+	}()
+
+	// 消费通知信息
+	go func() {
+		for ntf := range consumer.Notifications() {
+			log.Debug().Msgf("%s:Rebalanced: %+v \n", groupID, ntf)
+		}
+	}()
+
+	// 消费信息及监听信号
+	var successes int
+Loop:
+	for {
+		select {
+		case msg, ok := <-consumer.Messages():
+			if ok {
+				value := struct {
+					Text string `form:"text" json:"text"`
+				}{}
+				err := json.Unmarshal(msg.Value, &value)
+				if err != nil {
+					log.Error().Msgf("consume message json format error, %v", err)
+					break Loop
+				}
+				log.Debug().Msgf("GroupID: %s, Topic: %s, Partition: %d, Offset: %d, Key: %s, Value: %s",
+					groupID, msg.Topic, msg.Partition, msg.Offset, msg.Key, value.Text)
+				consumer.MarkOffset(msg, "") // 标记信息为已处理
+				successes++
+			}
+		case <-signals:
+			break Loop
+		}
+	}
+	log.Debug().Msgf("%s consume %d messages \n", groupID, successes)
 }

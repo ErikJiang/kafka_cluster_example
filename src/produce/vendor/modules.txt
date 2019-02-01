@@ -1,0 +1,51 @@
+# github.com/DataDog/zstd v1.3.5
+github.com/DataDog/zstd
+# github.com/Shopify/sarama v1.20.1
+github.com/Shopify/sarama
+# github.com/davecgh/go-spew v1.1.0
+github.com/davecgh/go-spew/spew
+# github.com/eapache/go-resiliency v1.1.0
+github.com/eapache/go-resiliency/breaker
+# github.com/eapache/go-xerial-snappy v0.0.0-20180814174437-776d5712da21
+github.com/eapache/go-xerial-snappy
+# github.com/eapache/queue v1.1.0
+github.com/eapache/queue
+# github.com/gin-contrib/sse v0.0.0-20190125020943-a7658810eb74
+github.com/gin-contrib/sse
+# github.com/gin-gonic/gin v1.3.0
+github.com/gin-gonic/gin
+github.com/gin-gonic/gin/binding
+github.com/gin-gonic/gin/json
+github.com/gin-gonic/gin/render
+# github.com/golang/protobuf v1.2.0
+github.com/golang/protobuf/proto
+# github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db
+github.com/golang/snappy
+# github.com/json-iterator/go v1.1.5
+github.com/json-iterator/go
+# github.com/mattn/go-isatty v0.0.4
+github.com/mattn/go-isatty
+# github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
+github.com/modern-go/concurrent
+# github.com/modern-go/reflect2 v1.0.1
+github.com/modern-go/reflect2
+# github.com/pierrec/lz4 v2.0.7+incompatible
+github.com/pierrec/lz4
+github.com/pierrec/lz4/internal/xxh32
+# github.com/rcrowley/go-metrics v0.0.0-20181016184325-3113b8401b8a
+github.com/rcrowley/go-metrics
+# github.com/rs/zerolog v1.11.0
+github.com/rs/zerolog/log
+github.com/rs/zerolog
+github.com/rs/zerolog/internal/cbor
+github.com/rs/zerolog/internal/json
+# github.com/ugorji/go/codec v0.0.0-20190128213124-ee1426cffec0
+github.com/ugorji/go/codec
+# github.com/urfave/cli v1.20.0
+github.com/urfave/cli
+# golang.org/x/sys v0.0.0-20190114130336-2be517255631
+golang.org/x/sys/unix
+# gopkg.in/go-playground/validator.v8 v8.18.2
+gopkg.in/go-playground/validator.v8
+# gopkg.in/yaml.v2 v2.2.2
+gopkg.in/yaml.v2
