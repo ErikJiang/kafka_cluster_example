@@ -34,21 +34,21 @@ func main() {
 func args() []cli.Flag {
 	return []cli.Flag{
 		cli.StringFlag{
-			Name:  "kafka-brokers, kb",
-			Value: "kfk1:19092,kfk2:29092,kfk3:39092",
-			Usage: "Kafka brokers in comma separated value",
+			Name:   "kafka-brokers, kb",
+			Value:  "kfk1:19092,kfk2:29092,kfk3:39092",
+			Usage:  "Kafka brokers in comma separated value",
 			EnvVar: "KAFKA_BROKERS",
 		},
 		cli.StringFlag{
-			Name:  "kafka-consumer-group, kcg",
-			Value: "consumer-group",
-			Usage: "Kafka consumer group",
+			Name:   "kafka-consumer-group, kcg",
+			Value:  "consumer-group",
+			Usage:  "Kafka consumer group",
 			EnvVar: "KAFKA_CONSUMER_GROUP_ID",
 		},
 		cli.StringFlag{
-			Name:  "kafka-topic, kt",
-			Value: "hello",
-			Usage: "Kafka topic to push",
+			Name:   "kafka-topic, kt",
+			Value:  "hello",
+			Usage:  "Kafka topic to push",
 			EnvVar: "KAFKA_TOPIC",
 		},
 	}
@@ -111,28 +111,30 @@ func clusterConsumer(wg *sync.WaitGroup, brokers, topics []string, groupID strin
 	}()
 
 	// 消费信息及监听信号
-	var successes int
 Loop:
 	for {
 		select {
-		case msg, ok := <-consumer.Messages():
-			if ok {
-				value := struct {
-					Text string `form:"text" json:"text"`
-				}{}
-				err := json.Unmarshal(msg.Value, &value)
-				if err != nil {
-					log.Error().Msgf("consume message json format error, %v", err)
-					break Loop
-				}
-				log.Debug().Msgf("GroupID: %s, Topic: %s, Partition: %d, Offset: %d, Key: %s, Value: %s",
-					groupID, msg.Topic, msg.Partition, msg.Offset, msg.Key, value.Text)
-				consumer.MarkOffset(msg, "") // 标记信息为已处理
-				successes++
+		case part, ok := <-consumer.Partitions():
+			if !ok {
+				break Loop
 			}
+			go func(pc cluster.PartitionConsumer) {
+				for msg := range pc.Messages() {
+					value := struct {
+						Text string `form:"text" json:"text"`
+					}{}
+					err := json.Unmarshal(msg.Value, &value)
+					if err != nil {
+						log.Error().Msgf("Consume message json format error, value: %v", msg.Value)
+					} else {
+						log.Debug().Msgf("GroupID: %s, Topic: %s, Partition: %d, Offset: %d, Key: %s, Value: %s",
+							groupID, msg.Topic, msg.Partition, msg.Offset, msg.Key, value.Text)
+					}
+					consumer.MarkOffset(msg, "") // 标记信息为已处理
+				}
+			}(part)
 		case <-signals:
 			break Loop
 		}
 	}
-	log.Debug().Msgf("%s consume %d messages \n", groupID, successes)
 }

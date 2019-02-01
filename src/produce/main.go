@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"crypto/sha1"
-	"encoding/json"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -40,22 +40,22 @@ func main() {
 func args() []cli.Flag {
 	return []cli.Flag{
 		cli.StringFlag{
-			Name:  "listen-address, la",
-			Value: "0.0.0.0:9000",
-			Usage: "Listen address for api",
+			Name:   "listen-address, la",
+			Value:  "0.0.0.0:9000",
+			Usage:  "Listen address for api",
 			EnvVar: "LISTEN_ADDRESS",
 		},
 		cli.StringFlag{
-			Name:  "kafka-brokers, kb",
-			Value: "kfk1:19092,kfk2:29092,kfk3:39092",
-			Usage: "Kafka brokers in comma separated value",
+			Name:   "kafka-brokers, kb",
+			Value:  "kfk1:19092,kfk2:29092,kfk3:39092",
+			Usage:  "Kafka brokers in comma separated value",
 			EnvVar: "KAFKA_BROKERS",
 		},
 		cli.StringFlag{
-			Name:  "kafka-topic, kt",
-			Value: "hello",
-			Usage: "Kafka topic to push",
-      		EnvVar: "KAFKA_TOPIC",
+			Name:   "kafka-topic, kt",
+			Value:  "hello",
+			Usage:  "Kafka topic to push",
+			EnvVar: "KAFKA_TOPIC",
 		},
 	}
 }
