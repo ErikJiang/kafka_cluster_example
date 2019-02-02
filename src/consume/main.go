@@ -81,8 +81,8 @@ func clusterConsumer(wg *sync.WaitGroup, brokers, topics []string, groupID strin
 	config := cluster.NewConfig()
 	config.Consumer.Return.Errors = true
 	config.Group.Return.Notifications = true
+	config.Version = sarama.V2_1_0_0
 	config.Consumer.Offsets.Initial = sarama.OffsetNewest
-	config.Group.Mode = cluster.ConsumerModePartitions
 
 	// 初始化消费者
 	consumer, err := cluster.NewConsumer(brokers, groupID, topics, config)
@@ -106,35 +106,33 @@ func clusterConsumer(wg *sync.WaitGroup, brokers, topics []string, groupID strin
 	// 消费通知信息
 	go func() {
 		for ntf := range consumer.Notifications() {
-			log.Debug().Msgf("%s:Rebalanced: %+v \n", groupID, ntf)
+			log.Debug().Msgf("%s:Rebalanced: %v \n", groupID, ntf)
 		}
 	}()
 
 	// 消费信息及监听信号
+	var successes int
 Loop:
 	for {
 		select {
-		case part, ok := <-consumer.Partitions():
-			if !ok {
-				break Loop
-			}
-			go func(pc cluster.PartitionConsumer) {
-				for msg := range pc.Messages() {
-					value := struct {
-						Text string `form:"text" json:"text"`
-					}{}
-					err := json.Unmarshal(msg.Value, &value)
-					if err != nil {
-						log.Error().Msgf("Consume message json format error, value: %v", msg.Value)
-					} else {
-						log.Debug().Msgf("GroupID: %s, Topic: %s, Partition: %d, Offset: %d, Key: %s, Value: %s",
-							groupID, msg.Topic, msg.Partition, msg.Offset, msg.Key, value.Text)
-					}
-					consumer.MarkOffset(msg, "") // 标记信息为已处理
+		case msg, ok := <-consumer.Messages():
+			if ok {
+				value := struct {
+					Text string `form:"text" json:"text"`
+				}{}
+				err := json.Unmarshal(msg.Value, &value)
+				if err != nil {
+					log.Error().Msgf("consume message json format error, %v", err)
+					break Loop
 				}
-			}(part)
+				log.Debug().Msgf("GroupID: %s, Topic: %s, Partition: %d, Offset: %d, Key: %s, Value: %s",
+					groupID, msg.Topic, msg.Partition, msg.Offset, msg.Key, value.Text)
+				consumer.MarkOffset(msg, "") // 标记信息为已处理
+				successes++
+			}
 		case <-signals:
 			break Loop
 		}
 	}
+	log.Debug().Msgf("%s consume %d messages", groupID, successes)
 }

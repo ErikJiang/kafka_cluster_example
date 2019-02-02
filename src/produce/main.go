@@ -12,17 +12,12 @@ import (
 	"sort"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/Shopify/sarama"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 	"github.com/urfave/cli"
-)
-
-var (
-	ListenAddr string
-	BrokerUrls string
-	Topic      string
 )
 
 func main() {
@@ -65,13 +60,15 @@ func action(c *cli.Context) error {
 	log.Info().Msg("kafka tutorial produce.")
 	log.Info().Msg("(c) Erik 2019")
 
-	ListenAddr = c.String("listen-address")
-	BrokerUrls = c.String("kafka-brokers")
-	Topic = c.String("kafka-topic")
+	listenAddr := c.String("listen-address")
+	kafkaBrokers := c.String("kafka-brokers")
+	topic := c.String("kafka-topic")
 
-	log.Info().Msgf("listen-address: %s", ListenAddr)
-	log.Info().Msgf("kafka-brokers: %s", BrokerUrls)
-	log.Info().Msgf("kafka-topic: %s", Topic)
+	log.Info().Msgf("listen-address: %s", listenAddr)
+	log.Info().Msgf("kafka-brokers: %s", kafkaBrokers)
+	log.Info().Msgf("kafka-topic: %s", topic)
+
+	brokerUrls := strings.Split(kafkaBrokers, ",")
 
 	config := sarama.NewConfig()
 
@@ -85,19 +82,25 @@ func action(c *cli.Context) error {
 
 	config.Version = sarama.V2_1_0_0
 
-	log.Info().Msg("start make producer")
+	log.Info().Msg("start make topic")
+	err := createTopic(config, brokerUrls[0], topic)
+	if err != nil {
+		log.Error().Msgf("%v", err)
+		return err
+	}
 
-	producer, err := sarama.NewAsyncProducer(strings.Split(BrokerUrls, ","), config)
+	log.Info().Msg("start make producer")
+	producer, err := sarama.NewAsyncProducer(brokerUrls, config)
 	if err != nil {
 		log.Error().Msgf("%v", err)
 		return err
 	}
 	defer producer.AsyncClose()
 
-	log.Info().Msgf("starting server at %s", ListenAddr)
+	log.Info().Msgf("starting server at %s", listenAddr)
 	errChan := make(chan error, 1)
 	go func(p sarama.AsyncProducer) {
-		errChan <- httpServer(p)
+		errChan <- httpServer(p, topic, listenAddr)
 	}(producer)
 
 	var signalChan = make(chan os.Signal, 1)
@@ -123,7 +126,49 @@ Loop:
 	return nil
 }
 
-func httpServer(producer sarama.AsyncProducer) error {
+// createTopic 创建 Topic
+func createTopic(config *sarama.Config, brokerURL, topicName string) error {
+	broker := sarama.NewBroker(brokerURL)
+	broker.Open(config)
+	yes, err := broker.Connected()
+	if err != nil {
+		log.Error().Msgf("broker connect fail, %v", err)
+		return err
+	}
+	log.Debug().Msgf("broker connect status: %v", yes)
+
+	topicDetail := &sarama.TopicDetail{
+		NumPartitions:     2,
+		ReplicationFactor: 1,
+		ConfigEntries:     make(map[string]*string),
+	}
+
+	topicDetails := make(map[string]*sarama.TopicDetail)
+	topicDetails[topicName] = topicDetail
+
+	request := sarama.CreateTopicsRequest{
+		Timeout:      time.Second * 15,
+		TopicDetails: topicDetails,
+	}
+
+	response, err := broker.CreateTopics(&request)
+	if err != nil {
+		log.Error().Msgf("create topics fail, %v", err)
+		return err
+	}
+	log.Debug().Msgf("response length: %d", len(response.TopicErrors))
+	for key, val := range response.TopicErrors {
+		log.Debug().Msgf("Key is %s", key)
+		log.Debug().Msgf("Val is %#v", val.Err.Error())
+		log.Debug().Msgf("ValMsg is %#v", val.ErrMsg)
+	}
+	log.Info().Msgf("create topics response: %v", response)
+	broker.Close()
+	return nil
+}
+
+// httpServer 启动 HTTP 服务
+func httpServer(producer sarama.AsyncProducer, topicName, listenAddr string) error {
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New()
@@ -157,9 +202,12 @@ func httpServer(producer sarama.AsyncProducer) error {
 		}
 
 		// send message to kafka
-		msg := &sarama.ProducerMessage{Topic: Topic}
-		msg.Key = sarama.ByteEncoder(MakeSha1(form.Text))
-		msg.Value = sarama.ByteEncoder(formInBytes)
+		msg := &sarama.ProducerMessage{
+			Topic:     topicName,
+			Key:       sarama.StringEncoder(MakeSha1(form.Text)),
+			Value:     sarama.ByteEncoder(formInBytes),
+			Timestamp: time.Now(),
+		}
 		producer.Input() <- msg
 
 		ctx.JSON(http.StatusOK, map[string]interface{}{
@@ -168,8 +216,7 @@ func httpServer(producer sarama.AsyncProducer) error {
 			"data":    form,
 		})
 	})
-
-	return router.Run(ListenAddr)
+	return router.Run(listenAddr)
 }
 
 // MakeSha1 计算字符串的 sha1 hash 值
