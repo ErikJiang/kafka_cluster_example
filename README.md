@@ -5,6 +5,12 @@
   <img src="https://img.shields.io/badge/License-MIT-blue.svg" />
 </p>
 
+<p align="left">
+  <img src="./wic.gif" />
+</p>
+
+
+
 > 该项目现处于施工状态
 
 ### 1. hosts 域名配置
