@@ -60,7 +60,7 @@ $ export GOPROXY=https://goproxy.io
 
 ### 3. 最终测试
 
-我们采用 [ApacheBench](https://httpd.apache.org/docs/2.4/programs/ab.html) 来进行并发测试
+这里采用 [ApacheBench](https://httpd.apache.org/docs/2.4/programs/ab.html) 来进行并发测试（并发数为10，总计100个请求）：
 ``` bash
 $ ab -n100 -c10 -T application/json -p test/ab_post_test.json http://127.0.0.1:9000/api/v1/data
 ```
