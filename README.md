@@ -10,6 +10,11 @@
 
 ---
 
+### 项目获取：
+``` sh
+$ git clone --depth=1 https://github.com/ErikJiang/kafka_cluster_example.git
+```
+
 ### 项目依赖工具：
 * [Make](https://www.gnu.org/software/make/)
 * [Kafkacat](https://github.com/edenhill/kafkacat)
