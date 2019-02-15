@@ -40,7 +40,7 @@ logs:
 clean:
 	@echo "docker image clean ...";
 	docker image prune -f;
-	docker rmi src_produce src_consume1 src_consume2;
+	docker rmi src_produce src_consume1 src_consume2 -f;
 
 ## test			Apache benchmark test for src.
 .PHONY: test
