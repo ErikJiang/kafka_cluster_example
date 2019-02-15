@@ -110,3 +110,5 @@ $ make test
 ```
 
 ---
+
+> 文档详见：[Wiki](https://github.com/ErikJiang/kafka_cluster_example/wiki)
